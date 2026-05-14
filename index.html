@@ -1000,6 +1000,21 @@
                             <span>Se inserito, sostituirà il nome nei documenti generati (salvato automaticamente)</span>
                         </div>
                     </div>
+                    <!-- CAMPO TIROCINIO -->
+                    <div class="discord-id-section" style="margin-top: 1rem;">
+                        <label class="input-label">
+                            <span class="label-icon">👨‍🏫</span>
+                            ID Discord di chi fa il Tirocinio
+                            <span class="badge">Solo per Esito</span>
+                        </label>
+                        <input type="text" id="tirocinioDiscordId" placeholder="Es: 123456789012345678">
+                        <div class="hint">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                            </svg>
+                            <span>Se vuoto, verrà usato "Il Tuo ID Discord"</span>
+                        </div>
+                    </div>
 
                     <div id="dataDisplay" style="display: none;">
                         <div class="data-preview" id="dataGrid"></div>
@@ -1132,6 +1147,39 @@
                             </button>
                         </div>
 
+                        <!-- ====================== ESITO COLLOQUIO ====================== -->
+                        <div class="output-card" id="esitoCard">
+                            <div class="output-header">
+                                <div class="output-icon">👨‍💼</div>
+                                <div class="output-title">Esito Colloquio</div>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="input-label" style="margin-bottom: 0.5rem;">Esito del Colloquio</label>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                                    <button id="btnPositivo" class="btn-secondary" style="background: #16a34a; color: white; border: none;">
+                                        ✅ Positivo
+                                    </button>
+                                    <button id="btnNegativo" class="btn-secondary" style="background: #dc2626; color: white; border: none;">
+                                        ❌ Negativo
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="motivazioneGroup" style="display: none; margin-bottom: 1rem;">
+                                <label class="input-label">Motivazione (solo se negativo)</label>
+                                <textarea id="motivazioneInput" placeholder="Inserisci il motivo del rifiuto..." rows="3"></textarea>
+                            </div>
+
+                            <div class="preview" id="esitoPreview" style="min-height: 220px;">
+                                Seleziona Positivo o Negativo per generare il messaggio
+                            </div>
+
+                            <button class="btn-secondary" id="copyEsitoBtn" disabled>
+                                📋 Copia Messaggio Discord
+                            </button>
+                        </div>
+
                         <div class="output-card">
                             <div class="output-header">
                                 <div class="output-icon">
@@ -1183,6 +1231,28 @@
             </div>
         </div>
     </div>
+                        <!-- ====================== RIMOZIONE RUOLI ====================== -->
+                        <div class="output-card">
+                            <div class="output-header">
+                                <div class="output-icon">❌</div>
+                                <div class="output-title">Rimuovi Ruolo Principale</div>
+                            </div>
+                            <div class="preview" id="removeMainPreview"></div>
+                            <button class="btn-secondary" id="copyRemoveMainBtn">
+                                📋 Copia Messaggio
+                            </button>
+                        </div>
+
+                        <div class="output-card">
+                            <div class="output-header">
+                                <div class="output-icon">❌</div>
+                                <div class="output-title">Rimuovi Ruolo Fazioni</div>
+                            </div>
+                            <div class="preview" id="removeFactionPreview"></div>
+                            <button class="btn-secondary" id="copyRemoveFactionBtn">
+                                📋 Copia Messaggio
+                            </button>
+                        </div>
 
     <script>
         let templatePdfData = null;
@@ -1450,50 +1520,81 @@
             updateUI();
         });
 
-        function parseEmployeeData(data) {
-            try {
-                let parts = data.replace(/\t+/g, '|TAB|').split('|TAB|');
-                if (parts.length === 1) parts = data.split(/\s{2,}/);
-                if (parts.length < 7) parts = data.split(/\s+/);
-                
-                parts = parts.map(p => p.trim()).filter(p => p);
+function parseEmployeeData(data) {
+    try {
+        // Pulizia della riga
+        let cleaned = data.trim().replace(/\t+/g, ' | ').replace(/\s+/g, ' ');
+        let parts = cleaned.split(' | ').map(p => p.trim()).filter(p => p);
 
-                if (parts.length < 7) throw new Error('Dati incompleti: assicurati di copiare tutta la riga dall\'organico');
+        if (parts.length < 6) {
+            parts = cleaned.split(/\s+/).filter(p => p);
+        }
 
-                const ruolo = parts[0];
-                const nomeCompleto = parts[1];
-                const [nome, ...cognomeParts] = nomeCompleto.split(' ');
-                const cognome = cognomeParts.join(' ');
-                const discordName = parts[2];
-                const discordId = parts[3];
-                const dataNascita = parts[4];
-                const telefono = parts[5];
-                const dataAssunzione = parts[6];
+        const ruolo = parts[0] || '';
+
+        let nomeCompleto = '';
+        let discordName = '';
+        let discordId = '';
+        let dataNascita = '';
+        let telefono = '';
+        let dataAssunzione = '';
+        let chiAssume = 'Da specificare';
+
+        // Ricerca intelligente del Discord ID (numero lungo)
+        for (let i = 1; i < parts.length; i++) {
+            if (/^\d{15,20}$/.test(parts[i])) {
+                discordId = parts[i];
+                discordName = parts[i-1] || '';
                 
-                let chiAssume = 'Santoro';
-                for (let i = parts.length - 1; i >= 7; i--) {
-                    const campo = parts[i].toUpperCase();
-                    if (campo !== '/' && campo !== 'TRUE' && campo !== 'FALSE' && campo !== 'SI' && campo !== 'NO') {
-                        chiAssume = parts[i];
+                // Nome completo = tutto tra ruolo e discordName
+                nomeCompleto = parts.slice(1, i-1).join(' ').trim();
+                
+                // Dati successivi
+                if (i+1 < parts.length) dataNascita = parts[i+1];
+                if (i+2 < parts.length) telefono = parts[i+2];
+                if (i+3 < parts.length) dataAssunzione = parts[i+3];
+
+                // Chi Assume (ultimo campo testuale)
+                for (let j = parts.length - 1; j > i + 3; j--) {
+                    if (parts[j] && !/^\d+$/.test(parts[j]) && parts[j] !== 'TRUE' && parts[j] !== 'FALSE') {
+                        chiAssume = parts[j];
                         break;
                     }
                 }
-
-                employeeInfo = {
-                    ruolo, nome, cognome, nomeCompleto,
-                    discordName, discordId, dataNascita,
-                    telefono, dataAssunzione, chiAssume
-                };
-
-                displayData();
-                generatePreviews();
-                showToast('Dati del dipendente estratti e validati correttamente', 'success');
-            } catch (error) {
-                showToast(error.message, 'error', 'Errore parsing dati');
-                employeeInfo = null;
-                elements.dataDisplay.style.display = 'none';
+                break;
             }
         }
+
+        if (!nomeCompleto) nomeCompleto = parts[1] || '';
+
+        // Separa Nome e Cognome
+        const nomeParts = nomeCompleto.split(' ');
+        const nome = nomeParts[0] || '';
+        const cognome = nomeParts.slice(1).join(' ') || '';
+
+        employeeInfo = {
+            ruolo,
+            nome,
+            cognome,
+            nomeCompleto: nomeCompleto || (nome + ' ' + cognome).trim(),
+            discordName,
+            discordId,
+            dataNascita,
+            telefono,
+            dataAssunzione,
+            chiAssume
+        };
+
+        displayData();
+        generatePreviews();
+        showToast('✅ Dati estratti correttamente!', 'success');
+    } catch (error) {
+        console.error(error);
+        showToast('Errore nel parsing dei dati', 'error');
+        employeeInfo = null;
+        elements.dataDisplay.style.display = 'none';
+    }
+}
 
         function getOperatorIdentifier() {
             const customId = elements.operatorDiscordId.value.trim();
@@ -1654,8 +1755,11 @@ try {
                 const pdfBytes = await pdfDoc.save();
                 const blob = new Blob([pdfBytes], { type: 'application/pdf' });
 
-                const safeName = employeeInfo.nomeCompleto
-                    ? employeeInfo.nomeCompleto.replace(/[^\w\s.-]/gi, '')
+                // Versione migliorata che mantiene gli accenti (ò à è ecc.)
+                let safeName = employeeInfo.nomeCompleto 
+                    ? employeeInfo.nomeCompleto
+                        .replace(/[^\w\sàèéìíòóùúÀÈÉÌÍÒÓÙÚ.-]/gi, '')
+                        .trim()
                     : 'Contratto';
 
                 const fileName = `Contratto_${safeName}.pdf`;
@@ -1721,6 +1825,132 @@ try {
             showToast('Impossibile inizializzare il database locale', 'warning');
             updateUI();
         });
+// ==================== ESITO COLLOQUIO + RIMOZIONE RUOLI ====================
+
+let currentEsito = null;
+let currentMotivazione = "";
+
+// ESITO COLLOQUIO
+const esitoElements = {
+    btnPositivo: document.getElementById('btnPositivo'),
+    btnNegativo: document.getElementById('btnNegativo'),
+    motivazioneGroup: document.getElementById('motivazioneGroup'),
+    motivazioneInput: document.getElementById('motivazioneInput'),
+    esitoPreview: document.getElementById('esitoPreview'),
+    copyEsitoBtn: document.getElementById('copyEsitoBtn')
+};
+
+function getTirocinioSupervisor() {
+    const tirocinioId = document.getElementById('tirocinioDiscordId').value.trim();
+    const operatorId = document.getElementById('operatorDiscordId').value.trim();
+    if (tirocinioId) return `<@${tirocinioId}>`;
+    if (operatorId) return `<@${operatorId}>`;
+    return employeeInfo?.chiAssume || 'Da specificare';
+}
+
+function updateEsitoPreview() {
+    if (!employeeInfo) {
+        if (esitoElements.esitoPreview) esitoElements.esitoPreview.textContent = "Inserisci prima i dati del dipendente";
+        return;
+    }
+    const esitoText = currentEsito === "Positivo" ? "Positivo :white_check_mark:" : "Negativo :x:";
+    const supervisor = getTirocinioSupervisor();
+
+    let motivazioneText = (currentEsito === "Negativo" && currentMotivazione.trim()) 
+        ? `\n**Motivazione:** ${currentMotivazione.trim()}` : "";
+
+    const messaggio = `👨‍💼 **ESITO COLLOQUIO** 👨‍💼
+
+**Nome:** ${employeeInfo.nome || ''}
+**Cognome:** ${employeeInfo.cognome || ''}
+**Data di nascita:** ${employeeInfo.dataNascita || ''}
+**Tag Discord:** <@${employeeInfo.discordId || ''}>
+**Esito colloquio:** ${esitoText}
+**Tirocinio effettuato da:** ${supervisor}
+${motivazioneText}`;
+
+    if (esitoElements.esitoPreview) esitoElements.esitoPreview.textContent = messaggio;
+    if (esitoElements.copyEsitoBtn) esitoElements.copyEsitoBtn.disabled = false;
+}
+
+// RIMOZIONE RUOLI
+function generateRemovePreviews() {
+    if (!employeeInfo || !employeeInfo.discordId) return;
+
+    const removeMain = document.getElementById('removeMainPreview');
+    const removeFaction = document.getElementById('removeFactionPreview');
+
+    if (removeMain) removeMain.textContent = `Richiedo rimozione ruoli <@&793853904844095498> a <@${employeeInfo.discordId}> grazie!`;
+    if (removeFaction) removeFaction.textContent = `Richiedo rimozione ruoli <@&963862177918365696> a <@${employeeInfo.discordId}> grazie!`;
+}
+
+// Inizializzazione di tutti i nuovi bottoni
+function initNewFeatures() {
+    // Esito Colloquio bottoni
+    if (esitoElements.btnPositivo) {
+        esitoElements.btnPositivo.addEventListener('click', () => {
+            currentEsito = "Positivo";
+            if (esitoElements.motivazioneGroup) esitoElements.motivazioneGroup.style.display = "none";
+            currentMotivazione = "";
+            if (esitoElements.motivazioneInput) esitoElements.motivazioneInput.value = "";
+            updateEsitoPreview();
+        });
+    }
+
+    if (esitoElements.btnNegativo) {
+        esitoElements.btnNegativo.addEventListener('click', () => {
+            currentEsito = "Negativo";
+            if (esitoElements.motivazioneGroup) esitoElements.motivazioneGroup.style.display = "block";
+            updateEsitoPreview();
+        });
+    }
+
+    if (esitoElements.motivazioneInput) {
+        esitoElements.motivazioneInput.addEventListener('input', () => {
+            currentMotivazione = esitoElements.motivazioneInput.value;
+            updateEsitoPreview();
+        });
+    }
+
+    if (esitoElements.copyEsitoBtn) {
+        esitoElements.copyEsitoBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(esitoElements.esitoPreview.textContent).then(() => {
+                showToast('✅ Messaggio Esito Colloquio copiato!', 'success');
+            });
+        });
+    }
+
+    // Rimozione Ruoli
+    const copyRemoveMain = document.getElementById('copyRemoveMainBtn');
+    const copyRemoveFaction = document.getElementById('copyRemoveFactionBtn');
+
+    if (copyRemoveMain) copyRemoveMain.addEventListener('click', () => {
+        const text = document.getElementById('removeMainPreview').textContent;
+        navigator.clipboard.writeText(text).then(() => showToast('✅ Copiato!', 'success'));
+    });
+
+    if (copyRemoveFaction) copyRemoveFaction.addEventListener('click', () => {
+        const text = document.getElementById('removeFactionPreview').textContent;
+        navigator.clipboard.writeText(text).then(() => showToast('✅ Copiato!', 'success'));
+    });
+}
+
+// Override sicuro di generatePreviews
+const originalGeneratePreviews = generatePreviews;
+generatePreviews = function() {
+    if (typeof originalGeneratePreviews === 'function') {
+        originalGeneratePreviews.call(this);
+    }
+    updateEsitoPreview();
+    generateRemovePreviews();
+};
+
+// Avvia tutto
+initNewFeatures();
+if (employeeInfo) {
+    updateEsitoPreview();
+    generateRemovePreviews();
+}
     </script>
 </body>
 </html>
